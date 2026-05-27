@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タイピングゲーム</title>
+    <style>
+        html { font-size: 24px; } 
+
+        :root {
+            --primary: #4F46E5;
+            --bg-color: #F3F4F6;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+            --correct: #10B981;
+            --error-bg: #EF4444; 
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 1200px; 
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #start-screen, #result-screen, #game-screen { display: none; }
+        .active { display: block !important; }
+
+        h1 { margin-top: 0; color: var(--primary); font-size: 2.2rem; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px 48px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            font-weight: bold;
+        }
+        .btn:hover { background-color: #4338CA; }
+        .btn:active { transform: scale(0.95); }
+
+        .settings {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            font-size: 1.1rem;
+            flex-wrap: wrap; /* スマホや小画面でも崩れないように */
+        }
+        .settings select {
+            font-size: 1.1rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .settings input[type="checkbox"] {
+            transform: scale(1.5);
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background-color: #E5E7EB;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        #progress-bar {
+            width: 100%;
+            height: 100%;
+            background-color: var(--primary);
+            transition: width 0.1s linear;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: var(--text-muted);
+        }
+
+        #countdown-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 15rem; 
+            font-weight: bold;
+            color: rgba(79, 70, 229, 0.15); 
+            z-index: 10;
+            pointer-events: none; 
+            display: none;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-6px); }
+            80% { transform: translateX(6px); }
+        }
+        
+        .typing-area { 
+            margin: 10px 0; 
+            padding: 10px 0; 
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .typing-area.shake { animation: shake 0.25s ease-in-out; }
+
+        .kanji { 
+            font-size: 2.8rem; 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            overflow-wrap: break-word; /* はみ出し防止 */
+        }
+        .kana { 
+            font-size: 1.6rem; 
+            color: var(--text-muted); 
+            margin-bottom: 15px; 
+            overflow-wrap: break-word; /* はみ出し防止 */
+        }
+        .romaji { 
+            font-size: 2.6rem; 
+            font-family: monospace; 
+            letter-spacing: 2px; 
+            margin-top: 15px; 
+            word-break: break-all; /* 長いローマ字を確実に折り返す */
+            line-height: 1.4; /* 折り返したときの行間を確保 */
+        }
+
+        .typed { color: var(--correct); }
+        .untyped { color: var(--text-main); }
+        .romaji .typed { color: var(--correct); }
+        .romaji .untyped { color: #D1D5DB; }
+
+        .next-sentence-box {
+            margin: 15px auto;
+            padding: 8px 24px;
+            background-color: #F9FAFB;
+            border-radius: 20px;
+            border: 2px dashed #D1D5DB;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            max-width: 90%;
+            box-sizing: border-box;
+        }
+        .next-label {
+            font-size: 0.8rem;
+            color: white;
+            background-color: #9CA3AF;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            flex-shrink: 0; /* ラベルが潰れないようにする */
+        }
+        .next-text { 
+            font-size: 1.2rem; 
+            color: #4B5563; 
+            font-weight: bold; 
+            word-break: break-all; /* 長いNEXTも折り返す */
+        }
+
+        .keyboard-container {
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+        .kb-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap; /* 画面が狭いときに崩れないように */
+        }
+        .kb-key {
+            min-width: 45px;
+            height: 55px;
+            background: #F3F4F6;
+            border: 2px solid #E5E7EB;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #4B5563;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 #E5E7EB;
+            padding: 0 5px;
+        }
+        .kb-space { min-width: 300px; }
+        
+        .kb-key.correct {
+            background: var(--correct);
+            color: white;
+            border-color: var(--correct);
+            box-shadow: 0 0 0 var(--correct);
+            transform: translateY(4px);
+        }
+        .kb-key.miss {
+            background: var(--error-bg);
+            color: white;
+            border-color: var(--error-bg);
+            box-shadow: 0 0 0 var(--error-bg);
+            transform: translateY(4px);
+        }
+
+        .result-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        /* レスポンシブ対応: 画面が狭いときは2列にする */
+        @media (max-width: 800px) {
+            .result-stats { grid-template-columns: repeat(2, 1fr); }
+            html { font-size: 18px; }
+            .kb-space { min-width: 150px; }
+        }
+
+        .stat-box {
+            background: var(--bg-color);
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); font-weight: bold;}
+        .stat-value { font-size: 1.8rem; font-weight: bold; margin-top: 5px; color: var(--primary); }
+
+        #chart-container {
+            width: 100%;
+            height: 200px; 
+            margin: 30px 0;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .chart-legend {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: -20px;
+            margin-bottom: 20px;
+        }
+        .legend-color {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-left: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="main-container">
+        <div id="start-screen" class="active">
+            <h1>タイピングゲーム</h1>
+            <p>スペースキーを押すか、下のボタンでスタート！</p>
+            
+            <div class="settings">
+                <label>
+                    制限時間:
+                    <select id="time-select">
+                        <option value="30">30秒</option>
+                        <option value="60" selected>1分</option>
+                        <option value="120">2分</option>
+                        <option value="300">5分</option>
+                    </select>
+                </label>
+                <label>
+                    <input type="checkbox" id="sound-toggle" checked> 音を鳴らす
+                </label>
+            </div>
+
+            <button class="btn" onclick="prepareGame()">スタート</button>
+        </div>
+
+        <div id="game-screen">
+            <div id="countdown-overlay">3</div>
+            
+            <div class="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+
+            <div class="header-info">
+                <div>残り時間: <span id="time-display">0</span>秒</div>
+                <div>スコア: <span id="score-display">0</span></div>
+            </div>
+            
+            <div class="typing-area" id="typing-area">
+                <div class="kanji" id="current-kanji"></div>
+                <div class="kana" id="current-kana"></div>
+                
+                <div class="next-sentence-box">
+                    <span class="next-label">NEXT</span>
+                    <span class="next-text" id="next-kanji"></span>
+                </div>
+
+                <div class="romaji" id="current-romaji"></div>
+            </div>
+
+            <div class="keyboard-container" id="keyboard-container"></div>
+        </div>
+
+        <div id="result-screen">
+            <h1>タイムアップ！</h1>
+            
+            <div id="chart-container">
+                <canvas id="result-chart"></canvas>
+            </div>
+            <div class="chart-legend">
+                <span class="legend-color" style="background: rgba(79, 70, 229, 0.5);"></span>タイプ速度
+                <span class="legend-color" style="background: rgba(239, 68, 68, 0.7);"></span>ミスタイプ
+            </div>
+
+            <div class="result-stats">
+                <div class="stat-box">
+                    <div class="stat-label">総タイプ数</div>
+                    <div class="stat-value" id="res-total">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">平均タイプ</div>
+                    <div class="stat-value"><span id="res-speed">0.0</span><span style="font-size:0.8rem">打/秒</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">最大瞬間速度</div>
+                    <div class="stat-value"><span id="res-max-speed">0</span><span style="font-size:0.8rem">打/秒</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">ミスタイプ</div>
+                    <div class="stat-value" id="res-miss" style="color: #EF4444;">0</div>
+                </div>
+            </div>
+            <button class="btn" onclick="resetGame()">もう一度プレイ</button>
+        </div>
+    </div>
+
+    <script>
+        const romajiMap = {
+            'あ':['a'], 'い':['i'], 'う':['u','wu','whu'], 'え':['e'], 'お':['o'],
+            'か':['ka','ca'], 'き':['ki'], 'く':['ku','cu','qu'], 'け':['ke'], 'こ':['ko','co'],
+            'さ':['sa'], 'し':['shi','si','ci'], 'す':['su'], 'せ':['se','ce'], 'そ':['so'],
+            'た':['ta'], 'ち':['chi','ti'], 'つ':['tsu','tu'], 'て':['te'], 'と':['to'],
+            'な':['na'], 'に':['ni'], 'ぬ':['nu'], 'ね':['ne'], 'の':['no'],
+            'は':['ha'], 'ひ':['hi'], 'ふ':['fu','hu'], 'へ':['he'], 'ほ':['ho'],
+            'ま':['ma'], 'み':['mi'], 'む':['mu'], 'め':['me'], 'も':['mo'],
+            'や':['ya'], 'ゆ':['yu'], 'よ':['yo'],
+            'ら':['ra'], 'り':['ri'], 'る':['ru'], 'れ':['re'], 'ろ':['ro'],
+            'わ':['wa'], 'を':['wo'], 'ん':['nn','xn','n'],
+            'が':['ga'], 'ぎ':['gi'], 'ぐ':['gu'], 'げ':['ge'], 'ご':['go'],
+            'ざ':['za'], 'じ':['ji','zi'], 'ず':['zu'], 'ぜ':['ze'], 'ぞ':['zo'],
+            'だ':['da'], 'ぢ':['di'], 'づ':['du'], 'で':['de'], 'ど':['do'],
+            'ば':['ba'], 'び':['bi'], 'ぶ':['bu'], 'べ':['be'], 'ぼ':['bo'],
+            'ぱ':['pa'], 'ぴ':['pi'], 'ぷ':['pu'], 'ぺ':['pe'], 'ぽ':['po'],
+            'ぁ':['la','xa'], 'ぃ':['li','xi'], 'ぅ':['lu','xu'], 'ぇ':['le','xe'], 'ぉ':['lo','xo'],
+            'ゃ':['lya','xya'], 'ゅ':['lyu','xyu'], 'ょ':['lyo','xyo'],
+            'っ':['ltu','xtu','ltsu'],
+            'ー':['-'], '。':['.'], '、':[','], '？':['?'], '！':['!']
+        };
+
+        const baseCombos = {
+            'きゃ':['kya'], 'きゅ':['kyu'], 'きょ':['kyo'],
+            'しゃ':['sha','sya'], 'しゅ':['shu','syu'], 'しょ':['sho','syo'],
+            'ちゃ':['cha','tya','cya'], 'ちゅ':['chu','tyu','cyu'], 'ちょ':['cho','tyo','cyo'],
+            'にゃ':['nya'], 'にゅ':['nyu'], 'にょ':['nyo'],
+            'ひゃ':['hya'], 'ひゅ':['hyu'], 'ひょ':['hyo'],
+            'みゃ':['mya'], 'みゅ':['myu'], 'みょ':['myo'],
+            'りゃ':['rya'], 'りゅ':['ryu'], 'りょ':['ryo'],
+            'ぎゃ':['gya'], 'ぎゅ':['gyu'], 'ぎょ':['gyo'],
+            'じゃ':['ja','zya','jya'], 'じゅ':['ju','zyu','jyu'], 'じょ':['jo','zyo','jyo'],
+            'びゃ':['bya'], 'びゅ':['byu'], 'びょ':['byo'],
+            'ぴゃ':['pya'], 'ぴゅ':['pyu'], 'ぴょ':['pyo'],
+            'てぃ':['thi'], 'でぃ':['dhi'], 'うぃ':['wi'], 'うぇ':['we'], 'ふぁ':['fa'], 'ふぃ':['fi'], 'ふぇ':['fe'], 'ふぉ':['fo']
+        };
+
+        for (let key in baseCombos) {
+            romajiMap[key] = [...baseCombos[key]];
+            let char1 = key.charAt(0);
+            let char2 = key.charAt(1);
+            if (romajiMap[char1] && romajiMap[char2]) {
+                for (let r1 of romajiMap[char1]) {
+                    for (let r2 of romajiMap[char2]) {
+                        romajiMap[key].push(r1 + r2);
+                    }
+                }
+            }
+        }
+
+        function precalcShortest(hiragana) {
+            let dp = new Array(hiragana.length + 1).fill(null);
+            dp[hiragana.length] = "";
+
+            for (let i = hiragana.length - 1; i >= 0; i--) {
+                let minStr = null;
+                let c1 = hiragana[i];
+                
+                if (romajiMap[c1]) {
+                    for (let r of romajiMap[c1]) {
+                        if (c1 === 'ん' && r === 'n') {
+                            if (i + 1 < hiragana.length) {
+                                let nextChar = hiragana[i + 1];
+                                let vowelsAndY = ['あ','い','う','え','お','や','ゆ','よ','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
+                                if (vowelsAndY.includes(nextChar)) continue;
+                            } else {
+                                continue;
+                            }
+                        }
+                        if (dp[i + 1] !== null) {
+                            let cand = r + dp[i + 1];
+                            if (minStr === null || cand.length < minStr.length) minStr = cand;
+                        }
+                    }
+                }
+
+                if (i + 1 < hiragana.length) {
+                    let c2 = hiragana.substring(i, i + 2);
+                    if (romajiMap[c2]) {
+                        for (let r of romajiMap[c2]) {
+                            if (dp[i + 2] !== null) {
+                                let cand = r + dp[i + 2];
+                                if (minStr === null || cand.length < minStr.length) minStr = cand;
+                            }
+                        }
+                    }
+
+                    if (c1 === 'っ') {
+                        let nextKana = hiragana[i + 1];
+                        if (romajiMap[nextKana]) {
+                            for (let r of romajiMap[nextKana]) {
+                                let firstChar = r.charAt(0);
+                                if (['a','i','u','e','o','n'].indexOf(firstChar) === -1) {
+                                    if (dp[i + 1] !== null) {
+                                        let cand = firstChar + dp[i + 1];
+                                        if (minStr === null || cand.length < minStr.length) minStr = cand;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                dp[i] = minStr;
+            }
+            return dp;
+        }
+
+        function getStartNodes(kanaIndex, hiragana) {
+            let nodes = [];
+            if (kanaIndex >= hiragana.length) return nodes;
+
+            let c1 = hiragana[kanaIndex];
+            if (romajiMap[c1]) {
+                for (let r of romajiMap[c1]) {
+                    if (c1 === 'ん' && r === 'n') {
+                        if (kanaIndex + 1 < hiragana.length) {
+                            let nextChar = hiragana[kanaIndex + 1];
+                            let vowelsAndY = ['あ','い','う','え','お','や','ゆ','よ','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
+                            if (vowelsAndY.includes(nextChar)) continue;
+                        } else {
+                            continue;
+                        }
+                    }
+                    nodes.push({ kanaIndex: kanaIndex, chunkLen: 1, expected: r });
+                }
+            }
+
+            if (kanaIndex + 1 < hiragana.length) {
+                let c2 = hiragana.substring(kanaIndex, kanaIndex + 2);
+                if (romajiMap[c2]) {
+                    for (let r of romajiMap[c2]) {
+                        nodes.push({ kanaIndex: kanaIndex, chunkLen: 2, expected: r });
+                    }
+                }
+
+                if (c1 === 'っ') {
+                    let nextKana = hiragana[kanaIndex + 1];
+                    if (romajiMap[nextKana]) {
+                        let added = new Set();
+                        for (let r of romajiMap[nextKana]) {
+                            let firstChar = r.charAt(0);
+                            if (['a','i','u','e','o','n'].indexOf(firstChar) === -1 && !added.has(firstChar)) {
+                                added.add(firstChar);
+                                nodes.push({ kanaIndex: kanaIndex, chunkLen: 1, expected: firstChar });
+                            }
+                        }
+                    }
+                }
+            }
+            return nodes;
+        }
+
+        function initKeyboard() {
+            const kbContainer = document.getElementById('keyboard-container');
+            if(kbContainer.innerHTML !== "") return; 
+
+            const rows = [
+                ['1','2','3','4','5','6','7','8','9','0','-'],
+                ['q','w','e','r','t','y','u','i','o','p'],
+                ['a','s','d','f','g','h','j','k','l',';',':'],
+                ['z','x','c','v','b','n','m',',','.','?'],
+                [' ']
+            ];
+            
+            rows.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'kb-row';
+                row.forEach(key => {
+                    const keyDiv = document.createElement('div');
+                    keyDiv.className = 'kb-key' + (key === ' ' ? ' kb-space' : '');
+                    keyDiv.id = 'key-' + key;
+                    keyDiv.innerText = key === ' ' ? 'SPACE' : key.toUpperCase();
+                    rowDiv.appendChild(keyDiv);
+                });
+                kbContainer.appendChild(rowDiv);
+            });
+        }
+
+        let audioCtx = null;
+        let isSoundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        
+        function playSuccessSound() {
+            if (!audioCtx || !isSoundEnabled) return;
+            let osc = audioCtx.createOscillator();
+            let gainNode = audioCtx.createGain();
+            osc.type = 'sawtooth'; 
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.05); 
+            gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime); 
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playMissSound() {
+            if (!audioCtx || !isSoundEnabled) return;
+            let osc = audioCtx.createOscillator();
+            let gainNode = audioCtx.createGain();
+            osc.type = 'sawtooth'; 
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(120, audioCtx.currentTime + 0.15);
+            gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        const ALL_SENTENCES = [
+            { kanji: "今日からタイピングを始める", kana: "きょうからたいぴんぐをはじめる" },
+            { kanji: "素晴らしい朝を迎える", kana: "すばらしいあさをむかえる" },
+            { kanji: "新宿で美味しいご飯を食べる", kana: "しんじゅくでおいしいごはんをたべる" },
+            { kanji: "明日の天気は快晴の予報です", kana: "あしたのてんきはかいせいのよほうです" },
+            { kanji: "集中力を高めるための読書", kana: "しゅうちゅうりょくをたかめるためのどくしょ" },
+            { kanji: "温かいお茶を飲みながら仕事をする", kana: "あたたかいおちゃをのみながらしごとをする" },
+            { kanji: "失敗は成功の基盤となる", kana: "しっぱいはせいこうのきばんとなる" },
+            { kanji: "日々の継続は大きな力なり", kana: "ひびのけいぞくはおおきなちからなり" },
+            { kanji: "順番が来るまで少々お待ちください", kana: "じゅんばんがくるまでしょうしょうおまちください" },
+            { kanji: "安全第一で作業を進める", kana: "あんぜんだいいちでさぎょうをすすめる" },
+            { kanji: "急がば回れという言葉がある", kana: "いそがばまわれということばがある" },
+            { kanji: "新しい靴を履いて散歩に出かける", kana: "あたらしいくつをはいてさんぽにでかける" },
+            { kanji: "健康のために野菜をたくさん食べる", kana: "けんこうのためにやさいをたくさんたべる" },
+            { kanji: "図書館で歴史の本を借りる", kana: "としょかんでれきしのほんをかりる" },
+            { kanji: "目標に向かって毎日努力する", kana: "もくひょうにむかってまいにちどりょくする" },
+            { kanji: "元気な挨拶は気持ちが良い", kana: "げんきなあいさつはきもちがよい" },
+            { kanji: "部屋の掃除と整理整頓をする", kana: "へやのそうじとせいりせいとんをする" },
+            { kanji: "感謝の気持ちを言葉で伝える", kana: "かんしゃのきもちをことばでつたえる" },
+            { kanji: "春の風が心地よく吹き抜ける", kana: "はるのかぜがここちよくふきぬける" },
+            { kanji: "夜空に輝く星を見上げる", kana: "よぞらにかがやくほしをみあげる" },
+            { kanji: "早寝早起きは健康の秘訣です", kana: "はやねはやおきはけんこうのひけつです" },
+            { kanji: "週末は家族と一緒に買い物に行く", kana: "しゅうまつはかぞくといっしょにかいものにいく" },
+            { kanji: "日本の伝統的な文化を学ぶ", kana: "にほんのでんとうてきなぶんかをまなぶ" },
+            { kanji: "大きな深呼吸をしてリラックスする", kana: "おおきなしんこきゅうをしてりらっくすする" },
+            { kanji: "時計の針が正確に時を刻む", kana: "とけいのはりがせいかくにときをきざむ" },
+            { kanji: "笑顔が絶えない明るい家庭", kana: "えがおがたえないあかるいかてい" },
+            { kanji: "約束の時間をしっかりと守る", kana: "やくそくのじかんをしっかりとまもる" },
+            { kanji: "秋の紅葉が山々を彩る", kana: "あきのこうようがやまやまをいろどる" },
+            { kanji: "新しい技術を取り入れて改善する", kana: "あたらしいぎじゅつをとりいれてかいぜんする" },
+            { kanji: "問題の根本的な原因を探る", kana: "もんだいのこんぽんてきなげんいんをさぐる" },
+            { kanji: "青い空と白い雲が美しい", kana: "あおいそらとしろいくもがうつくしい" },
+            { kanji: "美味しい手作りのお弁当箱", kana: "おいしいてづくりのおべんとうばこ" },
+            { kanji: "会議の資料を事前に準備する", kana: "かいぎのしりょうをじぜんにじゅんびする" },
+            { kanji: "言葉の壁を乗り越えて交流する", kana: "ことばのかべをのりこえてこうりゅうする" },
+            { kanji: "自然の恵みに感謝して生きる", kana: "しぜんのめぐみにかんしゃしていきる" },
+            { kanji: "思いやりの心を持って接する", kana: "おもいやりのこころをもってせっする" },
+            { kanji: "静かな環境で集中して勉強する", kana: "しずかなかんきょうでしゅうちゅうしてべんきょうする" },
+            { kanji: "栄養のバランスを考えた食事", kana: "えいようのばらんすをかんがえたしょくじ" },
+            { kanji: "美しい海を守るための活動", kana: "うつくしいうみをとまもるためのかつどう" },
+            { kanji: "冷たい水で顔を洗って目を覚ます", kana: "つめたいみずでかおをあらってめをさます" },
+            { kanji: "未来への希望を胸に抱く", kana: "みらいへのきぼうをむねにいだく" },
+            { kanji: "基本的な操作方法を確認する", kana: "きほんてきなそうさほうほうをかくにんする" },
+            { kanji: "規則正しい生活リズムを作る", kana: "きそくただしいせいかつりずむをつくる" },
+            { kanji: "素晴らしい音楽に心を打たれる", kana: "すばらしいおんがくにこころをうたれる" },
+            { kanji: "親切な対応で顧客を喜ばせる", kana: "しんせつなたいおうでこきゃくをよろこばせる" },
+            { kanji: "四季折々の風景を楽しむ", kana: "しきおりおりのふうけいをたのしむ" },
+            { kanji: "雨の日は家の中でゆっくり過ごす", kana: "あめのひはいえのなかでゆっくりすごす" },
+            { kanji: "真実を明らかにするための調査", kana: "しんじつをあきらかにするためのちょうさ" },
+            { kanji: "経験を積んで実力を伸ばす", kana: "けいけんをつんでじつりょくをのばす" },
+            { kanji: "大切な友人への贈り物を探す", kana: "たいせつなゆうじんへのおくりものをさがす" }
+        ];
+
+        ALL_SENTENCES.forEach(sentence => {
+            sentence.dp = precalcShortest(sentence.kana);
+        });
+
+        let sentenceQueue = [];
+        let isPlaying = false;
+        let isCountingDown = false;
+        let totalDuration = 60; 
+        let timeLeft = 60;
+        let timerInterval = null;
+        
+        let stats = { keys: 0, misses: 0 };
+        let speedData = []; 
+        let missData = []; 
+        let currentSecondKeys = 0;
+        let currentSecondMisses = 0;
+        let tickCount = 0;
+
+        let currentTarget = null;
+        let activeNodes = []; 
+        let typedRomajiStr = "";
+        
+        const typingAreaEl = document.getElementById("typing-area");
+        const overlayEl = document.getElementById("countdown-overlay");
+
+        function shuffle(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function prepareGame() {
+            initAudio();
+            initKeyboard();
+
+            totalDuration = parseInt(document.getElementById("time-select").value);
+            isSoundEnabled = document.getElementById("sound-toggle").checked;
+
+            document.getElementById("start-screen").classList.remove("active");
+            document.getElementById("result-screen").classList.remove("active");
+            document.getElementById("game-screen").classList.add("active");
+            
+            sentenceQueue = shuffle(ALL_SENTENCES).concat(shuffle(ALL_SENTENCES));
+            stats = { keys: 0, misses: 0 };
+            speedData = [];
+            missData = [];
+            currentSecondKeys = 0;
+            currentSecondMisses = 0;
+            tickCount = 0;
+            timeLeft = totalDuration;
+            
+            document.getElementById("time-display").innerText = timeLeft;
+            document.getElementById("score-display").innerText = stats.keys;
+            document.getElementById("progress-bar").style.width = "100%";
+            
+            setSentence();
+
+            isCountingDown = true;
+            isPlaying = false;
+            overlayEl.style.display = "flex";
+            
+            let count = 3;
+            overlayEl.innerText = count;
+
+            let countInterval = setInterval(() => {
+                count--;
+                if(count > 0) {
+                    overlayEl.innerText = count;
+                } else if(count === 0) {
+                    overlayEl.innerText = "START!";
+                } else {
+                    clearInterval(countInterval);
+                    overlayEl.style.display = "none";
+                    isCountingDown = false;
+                    startGame(); 
+                }
+            }, 1000);
+        }
+
+        function startGame() {
+            isPlaying = true;
+
+            timerInterval = setInterval(() => {
+                timeLeft -= 0.1;
+                tickCount++;
+
+                if (tickCount % 10 === 0) {
+                    speedData.push(currentSecondKeys);
+                    missData.push(currentSecondMisses);
+                    currentSecondKeys = 0;
+                    currentSecondMisses = 0;
+                }
+
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    endGame();
+                }
+                
+                document.getElementById("time-display").innerText = Math.ceil(timeLeft);
+                let percentage = (timeLeft / totalDuration) * 100;
+                document.getElementById("progress-bar").style.width = percentage + "%";
+            }, 100);
+        }
+
+        function setSentence() {
+            if (sentenceQueue.length < 5) {
+                sentenceQueue = sentenceQueue.concat(shuffle(ALL_SENTENCES));
+            }
+            currentTarget = sentenceQueue.shift();
+            activeNodes = getStartNodes(0, currentTarget.kana);
+            typedRomajiStr = "";
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            let bestNode = null;
+            let minLen = Infinity;
+            for (let node of activeNodes) {
+                let remLen = node.expected.length + currentTarget.dp[node.kanaIndex + node.chunkLen].length;
+                if (remLen < minLen) {
+                    minLen = remLen;
+                    bestNode = node;
+                }
+            }
+
+            let consumedKanaCount = bestNode.kanaIndex;
+            let typedKana = currentTarget.kana.substring(0, consumedKanaCount);
+            let untypedKana = currentTarget.kana.substring(consumedKanaCount);
+            let remainingRomaji = bestNode.expected + currentTarget.dp[bestNode.kanaIndex + bestNode.chunkLen];
+
+            document.getElementById("current-kanji").innerText = currentTarget.kanji;
+            document.getElementById("current-kana").innerHTML = `<span class="typed">${typedKana}</span><span class="untyped">${untypedKana}</span>`;
+            document.getElementById("current-romaji").innerHTML = `<span class="typed">${typedRomajiStr}</span><span class="untyped">${remainingRomaji}</span>`;
+            document.getElementById("score-display").innerText = stats.keys;
+            document.getElementById("next-kanji").innerText = sentenceQueue[0].kanji;
+        }
+
+        function endGame() {
+            isPlaying = false;
+            clearInterval(timerInterval);
+            
+            if(currentSecondKeys > 0 || currentSecondMisses > 0) {
+                speedData.push(currentSecondKeys);
+                missData.push(currentSecondMisses);
+            }
+
+            document.getElementById("game-screen").classList.remove("active");
+            document.getElementById("result-screen").classList.add("active");
+            
+            let avgSpeed = (stats.keys / totalDuration).toFixed(1);
+            let maxSpeed = speedData.length > 0 ? Math.max(...speedData) : 0;
+
+            document.getElementById("res-total").innerText = stats.keys;
+            document.getElementById("res-speed").innerText = avgSpeed;
+            document.getElementById("res-max-speed").innerText = maxSpeed;
+            document.getElementById("res-miss").innerText = stats.misses;
+
+            drawChart();
+        }
+
+        function resetGame() {
+            document.getElementById("start-screen").classList.add("active");
+            document.getElementById("result-screen").classList.remove("active");
+        }
+
+        function drawChart() {
+            const canvas = document.getElementById('result-chart');
+            const ctx = canvas.getContext('2d');
+            
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * 2;
+            canvas.height = rect.height * 2;
+            ctx.scale(2, 2);
+            
+            const w = rect.width;
+            const h = rect.height;
+            ctx.clearRect(0, 0, w, h);
+            
+            if(speedData.length === 0) return;
+            
+            let maxVal = Math.max(...speedData, 5); 
+            const padX = 40;
+            const padY = 30;
+            const graphW = w - padX * 2;
+            const graphH = h - padY * 2;
+
+            ctx.strokeStyle = '#E5E7EB';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i=0; i<=4; i++) {
+                let y = h - padY - (i/4)*graphH;
+                ctx.moveTo(padX, y);
+                ctx.lineTo(w - padX, y);
+            }
+            ctx.stroke();
+
+            ctx.strokeStyle = '#9CA3AF';
+            ctx.beginPath();
+            ctx.moveTo(padX, padY);
+            ctx.lineTo(padX, h - padY);
+            ctx.lineTo(w - padX + 10, h - padY);
+            ctx.stroke();
+
+            ctx.lineWidth = 2;
+            for(let i=0; i<missData.length; i++) {
+                if(missData[i] > 0) {
+                    let x = padX + (i / Math.max(speedData.length - 1, 1)) * graphW;
+                    ctx.beginPath();
+                    let opacity = Math.min(0.4 + (missData[i] * 0.2), 1.0);
+                    ctx.strokeStyle = `rgba(239, 68, 68, ${opacity})`;
+                    ctx.lineWidth = missData[i] > 1 ? 4 : 2;
+                    ctx.moveTo(x, h - padY);
+                    ctx.lineTo(x, padY);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.strokeStyle = '#4F46E5';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            for(let i=0; i<speedData.length; i++) {
+                let x = padX + (i / Math.max(speedData.length - 1, 1)) * graphW;
+                let y = h - padY - (speedData[i] / maxVal) * graphH;
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            ctx.lineTo(padX + graphW, h - padY);
+            ctx.lineTo(padX, h - padY);
+            ctx.fillStyle = 'rgba(79, 70, 229, 0.15)';
+            ctx.fill();
+
+            ctx.fillStyle = '#6B7280';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(maxVal + '打', padX - 8, padY + 4);
+            ctx.fillText('0打', padX - 8, h - padY + 4);
+        }
+
+        window.addEventListener("keydown", (e) => {
+            if (!isPlaying && !isCountingDown && e.key === " ") {
+                if(document.getElementById("start-screen").classList.contains("active")) {
+                    e.preventDefault();
+                    prepareGame();
+                }
+                return;
+            }
+
+            if (!isPlaying || e.key.length > 1) return;
+
+            let key = e.key.toLowerCase();
+            let keyEl = document.getElementById('key-' + key);
+
+            let nextNodes = [];
+            let hit = false;
+            let isFinished = false;
+
+            for (let node of activeNodes) {
+                if (node.expected[0] === key) {
+                    hit = true;
+                    let rem = node.expected.substring(1);
+                    
+                    if (rem.length === 0) {
+                        let nextKanaIdx = node.kanaIndex + node.chunkLen;
+                        if (nextKanaIdx === currentTarget.kana.length) {
+                            isFinished = true;
+                        } else {
+                            let nextChunks = getStartNodes(nextKanaIdx, currentTarget.kana);
+                            for (let nc of nextChunks) nextNodes.push(nc);
+                        }
+                    } else {
+                        nextNodes.push({
+                            kanaIndex: node.kanaIndex,
+                            chunkLen: node.chunkLen,
+                            expected: rem
+                        });
+                    }
+                }
+            }
+
+            if (hit) {
+                playSuccessSound();
+                if(keyEl) keyEl.classList.add('correct');
+
+                let uniqueNodes = [];
+                let seen = new Set();
+                for (let node of nextNodes) {
+                    let keyStr = node.kanaIndex + "_" + node.chunkLen + "_" + node.expected;
+                    if (!seen.has(keyStr)) {
+                        seen.add(keyStr);
+                        uniqueNodes.push(node);
+                    }
+                }
+                activeNodes = uniqueNodes;
+                
+                typedRomajiStr += key;
+                stats.keys++;
+                currentSecondKeys++; 
+                
+                if (isFinished) {
+                    setSentence();
+                } else {
+                    updateDisplay();
+                }
+            } else {
+                playMissSound();
+                if(keyEl) keyEl.classList.add('miss');
+                
+                stats.misses++;
+                currentSecondMisses++; 
+                
+                typingAreaEl.classList.remove("shake");
+                void typingAreaEl.offsetWidth; 
+                typingAreaEl.classList.add("shake");
+            }
+        });
+
+        window.addEventListener("keyup", (e) => {
+            if (e.key.length > 1) return;
+            let key = e.key.toLowerCase();
+            let keyEl = document.getElementById('key-' + key);
+            if(keyEl) keyEl.classList.remove('correct', 'miss');
+        });
+    </script>
+</body>
+</html>
