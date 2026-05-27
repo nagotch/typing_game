@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>タイピングゲーム</title>
+    <title>本格タイピングゲーム</title>
     <style>
         html { font-size: 24px; } 
 
@@ -66,7 +66,7 @@
             gap: 30px;
             margin: 30px 0;
             font-size: 1.1rem;
-            flex-wrap: wrap; /* スマホや小画面でも崩れないように */
+            flex-wrap: wrap; 
         }
         .settings select {
             font-size: 1.1rem;
@@ -138,21 +138,21 @@
             font-size: 2.8rem; 
             font-weight: bold; 
             margin-bottom: 5px; 
-            overflow-wrap: break-word; /* はみ出し防止 */
+            overflow-wrap: break-word; 
         }
         .kana { 
             font-size: 1.6rem; 
             color: var(--text-muted); 
             margin-bottom: 15px; 
-            overflow-wrap: break-word; /* はみ出し防止 */
+            overflow-wrap: break-word; 
         }
         .romaji { 
             font-size: 2.6rem; 
             font-family: monospace; 
             letter-spacing: 2px; 
             margin-top: 15px; 
-            word-break: break-all; /* 長いローマ字を確実に折り返す */
-            line-height: 1.4; /* 折り返したときの行間を確保 */
+            word-break: break-all; 
+            line-height: 1.4; 
         }
 
         .typed { color: var(--correct); }
@@ -179,13 +179,13 @@
             padding: 4px 10px;
             border-radius: 12px;
             font-weight: bold;
-            flex-shrink: 0; /* ラベルが潰れないようにする */
+            flex-shrink: 0; 
         }
         .next-text { 
             font-size: 1.2rem; 
             color: #4B5563; 
             font-weight: bold; 
-            word-break: break-all; /* 長いNEXTも折り返す */
+            word-break: break-all; 
         }
 
         .keyboard-container {
@@ -199,7 +199,7 @@
             display: flex;
             gap: 8px;
             justify-content: center;
-            flex-wrap: wrap; /* 画面が狭いときに崩れないように */
+            flex-wrap: wrap; 
         }
         .kb-key {
             min-width: 45px;
@@ -240,7 +240,6 @@
             gap: 15px;
             margin: 20px 0;
         }
-        /* レスポンシブ対応: 画面が狭いときは2列にする */
         @media (max-width: 800px) {
             .result-stats { grid-template-columns: repeat(2, 1fr); }
             html { font-size: 18px; }
@@ -419,6 +418,7 @@
             }
         }
 
+        // 「ん」の判定ロジック修正
         function precalcShortest(hiragana) {
             let dp = new Array(hiragana.length + 1).fill(null);
             dp[hiragana.length] = "";
@@ -432,8 +432,9 @@
                         if (c1 === 'ん' && r === 'n') {
                             if (i + 1 < hiragana.length) {
                                 let nextChar = hiragana[i + 1];
-                                let vowelsAndY = ['あ','い','う','え','お','や','ゆ','よ','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
-                                if (vowelsAndY.includes(nextChar)) continue;
+                                // ア行、ヤ行、ナ行が次に来る場合は「n」単体での入力を許可しない
+                                let vowelsYAndN = ['あ','い','う','え','お','や','ゆ','よ','な','に','ぬ','ね','の','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
+                                if (vowelsYAndN.includes(nextChar)) continue;
                             } else {
                                 continue;
                             }
@@ -476,6 +477,7 @@
             return dp;
         }
 
+        // 「ん」の判定ロジック修正
         function getStartNodes(kanaIndex, hiragana) {
             let nodes = [];
             if (kanaIndex >= hiragana.length) return nodes;
@@ -486,8 +488,9 @@
                     if (c1 === 'ん' && r === 'n') {
                         if (kanaIndex + 1 < hiragana.length) {
                             let nextChar = hiragana[kanaIndex + 1];
-                            let vowelsAndY = ['あ','い','う','え','お','や','ゆ','よ','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
-                            if (vowelsAndY.includes(nextChar)) continue;
+                             // ア行、ヤ行、ナ行が次に来る場合は「n」単体での入力を許可しない
+                            let vowelsYAndN = ['あ','い','う','え','お','や','ゆ','よ','な','に','ぬ','ね','の','ん','ぁ','ぃ','ぅ','ぇ','ぉ','ゃ','ゅ','ょ'];
+                            if (vowelsYAndN.includes(nextChar)) continue;
                         } else {
                             continue;
                         }
